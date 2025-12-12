@@ -8,7 +8,7 @@ El sistema centraliza los cursos, tareas, horarios y actividades recurrentes del
 AgendaPro permite a los usuarios registrar cursos, tareas, actividades, horarios y rutinas, consolidando toda su información académica en una base de datos estructurada y segura.
 
 📌 Inteligencia Artificial Integrada
-- La plataforma utiliza un modelo LLM para:
+La plataforma utiliza un modelo LLM para:
 - Analizar la carga académica del estudiante.
 - Detectar riesgos por tareas próximas o acumuladas.
 - Priorizar actividades.
@@ -45,9 +45,9 @@ El sistema procesa el contexto completo y devuelve respuestas orientadas a mejor
 El diseño modular permite escalar el sistema, incorporar más funcionalidades y mejorar la precisión del asistente académico con nuevos modelos de lenguaje.
 
 🔐 Acceso a la Plataforma
-URL: https://agendapro-jv7txunrwqrq5vcrpaaxu7.streamlit.app/
-Usuario: javier_gamboa
-Contraseña: limaperu2025
+- URL: https://agendapro-jv7txunrwqrq5vcrpaaxu7.streamlit.app/
+- Usuario: javier_gamboa
+- Contraseña: limaperu2025
 Las credenciales son temporales y solo para fines demostrativos del proyecto.
 
 🎯 Objetivo Principal
