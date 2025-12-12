@@ -29,7 +29,7 @@ El estudiante puede hacer consultas naturales como:
 El sistema procesa el contexto completo y devuelve respuestas orientadas a mejorar la productividad.
 
 📌 Interfaz Web Intuitiva
-- Construida con Streamlit, cuenta con:
+Construida con Streamlit, cuenta con:
 - Formularios dinámicos
 - Visualización de próximas tareas
 - Calendario interactivo
@@ -42,12 +42,14 @@ El sistema procesa el contexto completo y devuelve respuestas orientadas a mejor
 - Base de Datos: agenda_pro.db (SQLAlchemy / PostgreSQL en proyección)
 - IA: Modelo LLM para análisis contextual y recomendaciones
 - Despliegue: Streamlit Cloud
+
 El diseño modular permite escalar el sistema, incorporar más funcionalidades y mejorar la precisión del asistente académico con nuevos modelos de lenguaje.
 
 🔐 Acceso a la Plataforma
 - URL: https://agendapro-jv7txunrwqrq5vcrpaaxu7.streamlit.app/
 - Usuario: javier_gamboa
 - Contraseña: limaperu2025
+
 Las credenciales son temporales y solo para fines demostrativos del proyecto.
 
 🎯 Objetivo Principal
