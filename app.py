@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 from datetime import datetime, date, time, timedelta
-import os, textwrap
+import os, textwrap, random
 from ics import Calendar, Event
 from sqlalchemy import create_engine, text
 
@@ -25,11 +25,15 @@ engine = create_engine(f"sqlite:///{DB_FILE}", echo=False, future=True)
 # ----------------------------
 def init_db():
     with engine.begin() as conn:
+        # Tabla users con esquema completo (incluye nombre, carrera, semestre)
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            nombre TEXT,
+            carrera TEXT,
+            semestre INTEGER
         )
         """))
         conn.execute(text("""
@@ -47,11 +51,23 @@ def init_db():
         )
         """))
 
-def add_user(username, password):
+        # --- AUTO-MIGRACIÓN ---
+        # Si la tabla 'users' ya existía de una versión anterior sin estas columnas,
+        # las agregamos aquí para no perder compatibilidad con datos viejos.
+        existing_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()]
+        if "nombre" not in existing_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN nombre TEXT"))
+        if "carrera" not in existing_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN carrera TEXT"))
+        if "semestre" not in existing_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN semestre INTEGER"))
+
+def add_user(username, password, nombre=None, carrera=None, semestre=None):
     with engine.begin() as conn:
         conn.execute(text("""
-        INSERT OR IGNORE INTO users (username, password) VALUES (:u, :p)
-        """), {"u": username, "p": password})
+        INSERT OR IGNORE INTO users (username, password, nombre, carrera, semestre)
+        VALUES (:u, :p, :n, :c, :s)
+        """), {"u": username, "p": password, "n": nombre, "c": carrera, "s": semestre})
 
 def get_user(username, password):
     q = text("SELECT * FROM users WHERE username=:u AND password=:p")
@@ -84,12 +100,207 @@ def get_events(user_id):
     q = text("SELECT * FROM events WHERE user_id=:id ORDER BY date,start")
     return pd.read_sql(q, engine, params={"id": user_id})
 
+def count_events_for_user(user_id):
+    with engine.begin() as conn:
+        result = conn.execute(text("SELECT COUNT(*) FROM events WHERE user_id=:id"), {"id": user_id}).fetchone()
+        return result[0] if result else 0
+
+# ----------------------------
+# SEED: datos iniciales de Diego Ramírez (Junio 2026)
+# ----------------------------
+def seed_diego_ramirez():
+    """Crea el usuario diego_ramirez y su agenda de junio 2026 si no existen todavía."""
+    add_user("diego_ramirez", "chosica2026", "Diego Ramírez", "Ingeniería de Software", 10)
+
+    user = get_user_by_name("diego_ramirez")
+    if not user:
+        return  # no debería pasar, pero por seguridad
+    user_id = int(user["id"])
+
+    # Si ya tiene eventos cargados, no volver a generar (evita duplicados en cada reinicio)
+    if count_events_for_user(user_id) > 0:
+        return
+
+    eventos = []
+    inicio = datetime(2026, 6, 1)
+    dias_mes = 30
+
+    clases_lista = [
+        ("Taller de Tesis II", "08:00", "10:00"),
+        ("Gestión de Proyectos de TI", "10:00", "12:00"),
+        ("Calidad y Pruebas de Software", "08:30", "10:30"),
+        ("Arquitectura de Software Empresarial", "09:00", "11:00"),
+        ("Seminario de Ingeniería de Software", "10:30", "12:30"),
+        ("Ética y Realidad Nacional", "08:00", "09:30"),
+    ]
+
+    charlas = [
+        "Charla de IA aplicada al sector bancario",
+        "Conferencia de Ciberseguridad",
+        "Evento DevOps Lima",
+        "Meetup de Software Architecture",
+        "Charla Big Data y Analytics",
+        "Seminario Blockchain",
+        "Webinar de Data Engineering BCP",
+    ]
+
+    cursos = [
+        "Curso virtual de Kubernetes",
+        "Curso de Machine Learning",
+        "Curso de Arquitectura Cloud (AWS)",
+        "Certificación SCRUM",
+        "Curso de Power BI Avanzado",
+        "Curso de SQL para Analítica",
+    ]
+
+    talleres = [
+        "Taller de Testing Automatizado",
+        "Taller de Diseño UX",
+        "Workshop CI/CD",
+        "Taller de Microservicios",
+        "Práctica intensiva de APIs",
+        "Taller de Visualización de Datos",
+    ]
+
+    ocio = [
+        "Tiempo libre / videojuegos",
+        "Salir a caminar",
+        "Series / Películas",
+        "Reunión con amigos",
+        "Música y relajación",
+    ]
+
+    responsabilidades = [
+        "Limpieza",
+        "Compras",
+        "Lavar ropa",
+        "Ordenar escritorio",
+    ]
+
+    lugares_lima = [
+        "Miraflores", "San Isidro", "Centro de Lima", "La Molina", "Surco",
+        "Barranco", "San Miguel", "Pueblo Libre"
+    ]
+
+    for i in range(dias_mes):
+        dia = inicio + timedelta(days=i)
+        fecha = dia.strftime("%Y-%m-%d")
+        dow = dia.weekday()
+
+        modalidad_bcp = random.choice(["presencial", "virtual"]) if dow < 5 else None
+
+        if dow < 5 and modalidad_bcp == "presencial":
+            eventos.append(("Dormir", "Rutina", fecha, "23:00", "05:30", 1, "Sueño", "Baja"))
+        elif dow >= 5:
+            eventos.append(("Dormir", "Rutina", fecha, "23:00", "06:30", 1, "Sueño, descanso de fin de semana", "Baja"))
+        else:
+            eventos.append(("Dormir", "Rutina", fecha, "22:30", "05:30", 1, "Sueño", "Baja"))
+
+        if dow < 5:
+            if modalidad_bcp == "presencial" or random.random() < 0.6:
+                eventos.append(("Viaje Chosica - UNMSM", "Transporte", fecha, "05:45", "07:30", 0,
+                                "Bus + Metropolitano, aprox. 1h 45min", "Alta"))
+            else:
+                eventos.append(("Viaje Chosica - Estación cercana", "Transporte", fecha, "06:30", "07:00", 0,
+                                "Traslado corto antes de conectarse de forma remota", "Baja"))
+
+        eventos.append(("Desayuno", "Alimentación", fecha, "07:30", "08:00", 1, "Comida principal antes de clases/trabajo", "Media"))
+
+        if dow < 5:
+            clase = random.choice(clases_lista)
+            eventos.append((clase[0], "Académico", fecha, clase[1], clase[2], 1, "Clase universitaria - UNMSM", "Alta"))
+
+        if random.random() < 0.35:
+            title = random.choice(talleres + cursos)
+            eventos.append((title, "Aprendizaje", fecha, "11:30", "13:00", 0, "", "Media"))
+
+        eventos.append(("Almuerzo", "Alimentación", fecha, "13:00", "13:45", 1, "Pausa de mediodía", "Media"))
+
+        if dow < 5:
+            if modalidad_bcp == "presencial":
+                eventos.append(("Viaje a oficinas BCP (San Isidro)", "Transporte", fecha,
+                                "13:45", "14:30", 0, "Traslado desde UNMSM hacia oficina", "Alta"))
+                eventos.append(("Práctica en BCP - Analítica y Tecnología", "Laboral", fecha,
+                                "14:30", "19:00", 1, "Modalidad presencial - Oficina San Isidro", "Alta"))
+                eventos.append(("Viaje BCP - Chosica", "Transporte", fecha,
+                                "19:00", "21:00", 0, "Retorno a casa, hora punta", "Alta"))
+            else:
+                eventos.append(("Práctica en BCP - Analítica y Tecnología", "Laboral", fecha,
+                                "14:30", "19:00", 1, "Modalidad virtual - Home office", "Alta"))
+
+        if dow < 4:
+            if modalidad_bcp == "presencial":
+                eventos.append(("Investigación de tesis", "Proyecto académico", fecha,
+                                "21:00", "22:00", 0, "Análisis de datos / redacción - Taller de Tesis II", "Alta"))
+            else:
+                eventos.append(("Investigación de tesis", "Proyecto académico", fecha,
+                                "19:30", "21:00", 0, "Análisis de datos / redacción - Taller de Tesis II", "Alta"))
+        elif dow == 4 and modalidad_bcp == "virtual":
+            eventos.append(("Investigación de tesis", "Proyecto académico", fecha,
+                            "19:00", "20:15", 0, "Análisis de datos / redacción - Taller de Tesis II", "Alta"))
+        elif dow >= 5:
+            eventos.append(("Investigación de tesis", "Proyecto académico", fecha,
+                            "16:00", "18:30", 0, "Avance de capítulos y revisión con asesor", "Alta"))
+
+        if random.random() < 0.3:
+            title = random.choice(charlas)
+            distrito = random.choice(lugares_lima)
+            eventos.append((title, "Evento / Conferencia", fecha,
+                            "15:00", "17:00", 0, f"Auditorio / webinar en {distrito}", "Media"))
+
+        if dow == 5:
+            eventos.append(("Salida social", "Vida personal", fecha, "19:00", "22:30", 0,
+                            "Cena afuera y paseo con amigos/pareja", "Media"))
+        elif dow < 4 and modalidad_bcp == "presencial":
+            eventos.append(("Cena", "Alimentación", fecha, "22:00", "22:25", 1, "Última comida del día", "Media"))
+            eventos.append(("Estudio personal", "Académico", fecha, "22:25", "22:30", 0,
+                            "Repaso breve antes de dormir", "Baja"))
+            title = random.choice(ocio)
+            eventos.append((title, "Ocio", fecha, "22:30", "23:00", 0,
+                            "Tiempo de relajación antes de dormir", "Baja"))
+        elif dow < 4:
+            eventos.append(("Cena", "Alimentación", fecha, "21:15", "21:45", 1, "Última comida del día", "Media"))
+            eventos.append(("Estudio personal", "Académico", fecha, "21:45", "22:30", 0,
+                            "Repaso de cursos / avance de tesis", "Alta"))
+            title = random.choice(ocio)
+            eventos.append((title, "Ocio", fecha, "22:30", "23:00", 0,
+                            "Tiempo de relajación antes de dormir", "Baja"))
+        elif dow == 4:
+            pass
+        else:
+            eventos.append(("Cena", "Alimentación", fecha, "20:00", "20:30", 1, "Última comida del día", "Media"))
+            eventos.append(("Estudio personal", "Académico", fecha, "20:30", "21:30", 0,
+                            "Repaso de cursos / avance de tesis", "Alta"))
+            title = random.choice(ocio)
+            eventos.append((title, "Ocio", fecha, "21:30", "22:30", 0,
+                            "Tiempo de relajación antes de dormir", "Baja"))
+
+        if dow >= 5:
+            title = random.choice(responsabilidades)
+            eventos.append((title, "Responsabilidad", fecha, "12:00", "13:00", 0, "", "Media"))
+
+        if dow == 4 and modalidad_bcp == "presencial":
+            eventos.append(("Salida social", "Vida personal", fecha,
+                            "21:15", "23:00", 0, "Comida o paseo, reemplaza cena en casa y ocio", "Media"))
+        elif dow == 4:
+            eventos.append(("Salida social", "Vida personal", fecha,
+                            "20:30", "22:30", 0, "Comida o paseo, reemplaza cena en casa y ocio", "Media"))
+
+        if dow == 6:
+            eventos.append(("Siesta / descanso", "Rutina", fecha, "14:00", "15:00", 0,
+                            "Recuperación del sueño acumulado en la semana", "Baja"))
+
+    for ev in eventos:
+        add_event(user_id, *ev)
+
 # ----------------------------
 # INIT
 # ----------------------------
 init_db()
 # demo user
 add_user("estudiante", "1234")
+# usuario Diego Ramírez + agenda de junio 2026 (se crea una sola vez, no duplica)
+seed_diego_ramirez()
 
 # ----------------------------
 # AUTH
@@ -433,8 +644,8 @@ with col_opt2:
     gem_text = "(Gemini no configurado)"
     if os.environ.get("GEMINI_API_KEY"):
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+            from google import genai
+            client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
             gem_text = "Gemini configurado. Se usará para consultas más avanzadas."
         except Exception as e:
             gem_text = f"Gemini detectado pero error: {e}"
@@ -458,12 +669,14 @@ with col_opt2:
             Devuelve: diagnóstico (breve), riesgos de burnout, recomendaciones priorizadas y un calendario alternativo de bloques (formato tabla).
             """)
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-                resp = genai.generate_text(model="models/gemini-2.5-flash", prompt=prompt, max_output_tokens=600)
-                text = getattr(resp, "text", None) or getattr(resp, "output_text", None) or str(resp)
+                from google import genai
+                client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+                resp = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                )
                 st.subheader("Respuesta (Gemini)")
-                st.write(text)
+                st.write(resp.text)
             except Exception as e:
                 st.error(f"Error llamando a Gemini: {e}")
 
@@ -505,4 +718,3 @@ else:
 # ----------------------------
 st.markdown("---")
 st.caption("PRO: Este prototipo se puede extender: integración OAuth Google Calendar, notificaciones push, reconcilación de disponibilidad docentes, o versión multiusuario con roles.")
-
