@@ -5,3 +5,4 @@ plotly
 sqlalchemy
 ics
 python-dateutil
+google-genai
